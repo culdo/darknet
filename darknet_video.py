@@ -5,6 +5,9 @@ import os
 import cv2
 import numpy as np
 import time
+
+import requests
+
 import darknet
 
 def convertBack(x, y, w, h):
@@ -42,8 +45,8 @@ altNames = None
 def YOLO():
 
     global metaMain, netMain, altNames
-    configPath = "./cfg/yolov3.cfg"
-    weightPath = "./yolov3.weights"
+    configPath = "./cfg/yolov3-tiny.cfg"
+    weightPath = "./bin/yolov3-tiny.weights"
     metaPath = "./cfg/coco.data"
     if not os.path.exists(configPath):
         raise ValueError("Invalid config path `" +
@@ -79,18 +82,22 @@ def YOLO():
                     pass
         except Exception:
             pass
-    #cap = cv2.VideoCapture(0)
-    cap = cv2.VideoCapture("test.mp4")
+
+
+def video_capture(SaveVideo=False):
+    cap = cv2.VideoCapture(0)
+    # cap = cv2.VideoCapture("test.mp4")
     cap.set(3, 1280)
     cap.set(4, 720)
-    out = cv2.VideoWriter(
-        "output.avi", cv2.VideoWriter_fourcc(*"MJPG"), 10.0,
-        (darknet.network_width(netMain), darknet.network_height(netMain)))
+    if SaveVideo:
+        out = cv2.VideoWriter(
+            "output.avi", cv2.VideoWriter_fourcc(*"MJPG"), 10.0,
+            (darknet.network_width(netMain), darknet.network_height(netMain)))
     print("Starting the YOLO loop...")
 
     # Create an image we reuse for each detect
     darknet_image = darknet.make_image(darknet.network_width(netMain),
-                                    darknet.network_height(netMain),3)
+                                       darknet.network_height(netMain), 3)
     while True:
         prev_time = time.time()
         ret, frame_read = cap.read()
@@ -100,16 +107,63 @@ def YOLO():
                                     darknet.network_height(netMain)),
                                    interpolation=cv2.INTER_LINEAR)
 
-        darknet.copy_image_from_bytes(darknet_image,frame_resized.tobytes())
+        darknet.copy_image_from_bytes(darknet_image, frame_resized.tobytes())
 
-        detections = darknet.detect_image(netMain, metaMain, darknet_image, thresh=0.25)
-        image = cvDrawBoxes(detections, frame_resized)
+        detections = darknet.detect_image(netMain, metaMain, darknet_image, frame_resized, thresh=0.25)
+        image = cvDrawBoxes(detections, frame_rgb)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        print(1/(time.time()-prev_time))
+        print(1 / (time.time() - prev_time))
         cv2.imshow('Demo', image)
         cv2.waitKey(3)
     cap.release()
-    out.release()
+    if SaveVideo:
+        out.release()
+
+
+def mjpeg_capture(img_url):
+    r = requests.get(img_url, stream=True)
+    # Create an image we reuse for each detect
+    darknet_image = darknet.make_image(darknet.network_width(netMain),
+                                       darknet.network_height(netMain), 3)
+
+    if r.status_code == 200:
+        mybytes = bytes()
+        for chunk in r.iter_content(chunk_size=1024):
+            mybytes += chunk
+            a = mybytes.find(b'\xff\xd8')
+            b = mybytes.find(b'\xff\xd9')
+
+            if a != -1 and b != -1:
+                if not a < (b + 2):
+                    # flush to head flag to find correct range
+                    mybytes = mybytes[a:]
+                else:
+                    jpg = mybytes[a:b + 2]
+                    # mybytes = mybytes[b + 2:]
+                    # mybytes = bytes()
+
+                    prev_time = time.time()
+                    frame_read = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    frame_rgb = cv2.cvtColor(frame_read, cv2.COLOR_BGR2RGB)
+                    frame_resized = cv2.resize(frame_rgb,
+                                               (darknet.network_width(netMain),
+                                                darknet.network_height(netMain)),
+                                               interpolation=cv2.INTER_LINEAR)
+
+                    darknet.copy_image_from_bytes(darknet_image, frame_resized.tobytes())
+
+                    detections = darknet.detect_image(netMain, metaMain, darknet_image, frame_rgb, thresh=0.25)
+                    image = cvDrawBoxes(detections, frame_rgb)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    print(1 / (time.time() - prev_time))
+                    cv2.imshow('Demo', image)
+                    cv2.waitKey(3)
+
+                    # Clear mybytes buffer to prevent internal bound shift
+                    mybytes = bytes()
+
 
 if __name__ == "__main__":
+    img_url = "http://203.64.134.168:9095/stream?topic=/usb_cam_node/image_raw&type=ros_compressed"
     YOLO()
+    mjpeg_capture(img_url)
