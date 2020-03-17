@@ -255,7 +255,7 @@ def detect(net, meta, image, thresh=.5, hier_thresh=.5, nms=.45, debug=False):
     return ret
 
 
-def detect_image(net, meta, im, custom_image_bgr, thresh=.5, hier_thresh=.5, nms=.45):
+def detect_image(net, meta, im, custom_shape, thresh=.5, hier_thresh=.5, nms=.45):
     # import cv2
     # custom_image_bgr = cv2.imread(image) # use: detect(,,imagePath,)
     # custom_image = cv2.cvtColor(custom_image_bgr, cv2.COLOR_BGR2RGB)
@@ -269,7 +269,7 @@ def detect_image(net, meta, im, custom_image_bgr, thresh=.5, hier_thresh=.5, nms
     letter_box = 0
     # predict_image_letterbox(net, im)
     # letter_box = 1
-    dets = get_network_boxes(net, custom_image_bgr.shape[1], custom_image_bgr.shape[0], thresh, hier_thresh, None, 0, pnum, letter_box) # OpenCV
+    dets = get_network_boxes(net, *custom_shape[:2], thresh, hier_thresh, None, 0, pnum, letter_box) # OpenCV
     # dets = get_network_boxes(net, im.w, im.h, thresh, hier_thresh, None, 0, pnum, letter_box)
     num = pnum[0]
     if nms:
