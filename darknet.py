@@ -64,7 +64,8 @@ class DETECTION(Structure):
                 ("mask", POINTER(c_float)),
                 ("objectness", c_float),
                 ("sort_class", c_int),
-                ("uc", POINTER(c_float))]
+                ("uc", POINTER(c_float)),
+                ("points", c_int)]
 
 
 class IMAGE(Structure):
@@ -150,6 +151,8 @@ predict.restype = POINTER(c_float)
 if hasGPU:
     set_gpu = lib.cuda_set_device
     set_gpu.argtypes = [c_int]
+
+init_cpu = lib.init_cpu
 
 make_image = lib.make_image
 make_image.argtypes = [c_int, c_int, c_int]
